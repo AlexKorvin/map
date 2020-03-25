@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <dimen name="octopus_size">30dp</dimen>
-    <dimen name="city_font_size">8dp</dimen>
+    <dimen name="city_font_size">10dp</dimen>
     <dimen name="point_radius">2dp</dimen>
 </resources>

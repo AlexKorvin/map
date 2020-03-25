@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -14,7 +16,12 @@ import android.widget.Scroller
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
-import ua.mykhailenko.maps.model.Octopus
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
+
 
 class MapView @JvmOverloads constructor(
     context: Context,
@@ -25,6 +32,7 @@ class MapView @JvmOverloads constructor(
 
     //bitmap is using to draw map
     private var bitmap: Bitmap? = null
+    private var bitmapToSend: Bitmap? = null
 
     //Octopus image is round, so we need only one size
     private val octopusSize: Float
@@ -81,11 +89,11 @@ class MapView @JvmOverloads constructor(
 
         with(numberPaint) {
             color = ResourcesCompat.getColor(resources, R.color.colorAccent, null)
-            strokeWidth = 1f
+            strokeWidth = 2f
             textSize = resources.getDimension(R.dimen.city_font_size)
-            letterSpacing = 0.05f
+            letterSpacing = 0.15f
             isAntiAlias = true
-            style = Paint.Style.STROKE
+            style = Paint.Style.FILL_AND_STROKE
         }
 
         pointRadius = resources.getDimension(R.dimen.point_radius)
@@ -134,10 +142,44 @@ class MapView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
         drawMap(canvas)
+
+//        val canvas1 = Canvas(bitmapToSend!!)
         drawCities(canvas)
-//        drawOctopus(canvas, math.octopus1)
-//        drawOctopus(canvas, math.octopus2)
+
+
+//        var fOut: OutputStream? = null
+//        val path: String = Environment.getExternalStorageDirectory().toString()
+//        val file = File(path, "map6.png")
+////        file.createNewFile()
+//
+//        fOut = FileOutputStream(file)
+//        println("bitmapToSend = $bitmapToSend")
+//
+//        GlobalScope.launch {
+//            bitmapToSend!!.compress(Bitmap.CompressFormat.PNG, 100, fOut)
+//            fOut.flush()
+//            fOut.close()
+//
+//            MediaStore.Images.Media.insertImage(
+//                context.getContentResolver(),
+//                file.getAbsolutePath(),
+//                file.getName(),
+//                file.getName()
+//            )
+//        }
     }
+
+//    private fun makeTransparentBitmap(bmp: Bitmap, alpha: Int): Bitmap? {
+//        val transBmp = Bitmap.createBitmap(
+//            bmp.width,
+//            bmp.height, Bitmap.Config.ARGB_8888
+//        )
+//        val canvas = Canvas(transBmp)
+//        val paint = Paint()
+//        paint.alpha = alpha
+//        canvas.drawBitmap(bmp, 0f, 0f, paint)
+//        return transBmp
+//    }
 
     private fun drawMap(canvas: Canvas?) {
         val destRect = Rect()
@@ -171,7 +213,7 @@ class MapView @JvmOverloads constructor(
         }
 
         for (city in math.cities) {
-            if (srcRect.contains(city.x.toInt(), city.y.toInt())) {
+//            if (srcRect.contains(city.x.toInt(), city.y.toInt())) {
                 canvas!!.drawCircle(
                     (city.x - srcRect.left).toFloat(),
                     (city.y - srcRect.top).toFloat(), pointRadius, pointPaint
@@ -182,26 +224,26 @@ class MapView @JvmOverloads constructor(
                     city.name, ((city.x - srcRect.left - bounds.width() / 2).toFloat()),
                     ((city.y - srcRect.top - bounds.height() / 2 - 5).toFloat()), numberPaint
                 )
-            }
+//            }
         }
     }
 
-    private fun drawOctopus(canvas: Canvas?, octopus: Octopus?) {
-        val destRect = Rect()
-
-        if (octopus == null) {
-            return
-        }
-
-        with(destRect) {
-            left = octopus.x.toInt() - math.totalX.toInt()
-            right = (octopus.x.toInt() + octopusSize - math.totalX.toInt()).toInt()
-            top = octopus.y.toInt() - math.totalY.toInt()
-            bottom = (octopus.y.toInt() + octopusSize - math.totalY.toInt()).toInt()
-        }
-
-        canvas!!.drawBitmap(octopus.bitmap!!, null, destRect, bitmapPaint)
-    }
+//    private fun drawOctopus(canvas: Canvas?, octopus: Octopus?) {
+//        val destRect = Rect()
+//
+//        if (octopus == null) {
+//            return
+//        }
+//
+//        with(destRect) {
+//            left = octopus.x.toInt() - math.totalX.toInt()
+//            right = (octopus.x.toInt() + octopusSize - math.totalX.toInt()).toInt()
+//            top = octopus.y.toInt() - math.totalY.toInt()
+//            bottom = (octopus.y.toInt() + octopusSize - math.totalY.toInt()).toInt()
+//        }
+//
+//        canvas!!.drawBitmap(octopus.bitmap!!, null, destRect, bitmapPaint)
+//    }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
@@ -215,12 +257,18 @@ class MapView @JvmOverloads constructor(
     }
 
     private fun initBitmap() {
-        val drawable = ContextCompat.getDrawable(context, R.drawable.world_map)
+        val drawable = ContextCompat.getDrawable(context, R.drawable.map)
         bitmap = Bitmap.createScaledBitmap((drawable as BitmapDrawable).bitmap,
             math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), false)
 
-        math.octopus1!!.bitmap = getBitmap(R.drawable.octopus_1, octopusSize.toInt(), octopusSize.toInt())
-        math.octopus2!!.bitmap = getBitmap(R.drawable.octopus_2, octopusSize.toInt(), octopusSize.toInt())
+        bitmapToSend = Bitmap.createBitmap(math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), Bitmap.Config.ARGB_8888)
+
+        val canvas = Canvas(bitmapToSend!!)
+        val paint = Paint()
+        paint.alpha = 255
+        canvas.drawRect(Rect(0, 0, math.bitmapWidth.toInt(), math.bitmapHeight.toInt()), paint)
+//        math.octopus1!!.bitmap = getBitmap(R.drawable.octopus_1, octopusSize.toInt(), octopusSize.toInt())
+//        math.octopus2!!.bitmap = getBitmap(R.drawable.octopus_2, octopusSize.toInt(), octopusSize.toInt())
     }
 
     private fun getBitmap(resId: Int, width: Int, height: Int): Bitmap {
