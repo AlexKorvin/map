@@ -6,8 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
-import android.os.Environment
-import android.provider.MediaStore
+import android.graphics.drawable.Drawable
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
@@ -16,12 +15,7 @@ import android.widget.Scroller
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
-import java.io.OutputStream
-
+import ua.mykhailenko.maps.model.Tile
 
 class MapView @JvmOverloads constructor(
     context: Context,
@@ -32,7 +26,7 @@ class MapView @JvmOverloads constructor(
 
     //bitmap is using to draw map
     private var bitmap: Bitmap? = null
-    private var bitmapToSend: Bitmap? = null
+//    private var bitmapToSend: Bitmap? = null
 
     //Octopus image is round, so we need only one size
     private val octopusSize: Float
@@ -58,7 +52,12 @@ class MapView @JvmOverloads constructor(
             return true
         }
 
-        override fun onScroll(e1: MotionEvent?, e2: MotionEvent?, distanceX: Float, distanceY: Float): Boolean {
+        override fun onScroll(
+            e1: MotionEvent?,
+            e2: MotionEvent?,
+            distanceX: Float,
+            distanceY: Float
+        ): Boolean {
             math.appendX(distanceX)
             math.appendY(distanceY)
 
@@ -66,8 +65,10 @@ class MapView @JvmOverloads constructor(
             return true
         }
 
-        override fun onFling(e1: MotionEvent, e2: MotionEvent,
-                             velocityX: Float, velocityY: Float): Boolean {
+        override fun onFling(
+            e1: MotionEvent, e2: MotionEvent,
+            velocityX: Float, velocityY: Float
+        ): Boolean {
             fling((-velocityX).toInt(), (-velocityY).toInt())
             return true
         }
@@ -132,8 +133,8 @@ class MapView @JvmOverloads constructor(
              * content width is 1000 pixels and the screen width is 200
              * pixels, the maximum scroll offset should be 800 pixels.
              */
-            0, (math.bitmapWidth - width).toInt(),
-            0, (math.bitmapHeight - height).toInt()
+            0, MapMath.tileWidth * (MapMath.tilesCount + 1) - width,
+            0, MapMath.tileHeight * (MapMath.tilesCount + 1) - height
         )
         // Invalidates to trigger computeScroll()
         ViewCompat.postInvalidateOnAnimation(this)
@@ -142,64 +143,47 @@ class MapView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
         drawMap(canvas)
-
-//        val canvas1 = Canvas(bitmapToSend!!)
-        drawCities(canvas)
-
-
-//        var fOut: OutputStream? = null
-//        val path: String = Environment.getExternalStorageDirectory().toString()
-//        val file = File(path, "map6.png")
-////        file.createNewFile()
-//
-//        fOut = FileOutputStream(file)
-//        println("bitmapToSend = $bitmapToSend")
-//
-//        GlobalScope.launch {
-//            bitmapToSend!!.compress(Bitmap.CompressFormat.PNG, 100, fOut)
-//            fOut.flush()
-//            fOut.close()
-//
-//            MediaStore.Images.Media.insertImage(
-//                context.getContentResolver(),
-//                file.getAbsolutePath(),
-//                file.getName(),
-//                file.getName()
-//            )
-//        }
     }
 
-//    private fun makeTransparentBitmap(bmp: Bitmap, alpha: Int): Bitmap? {
-//        val transBmp = Bitmap.createBitmap(
-//            bmp.width,
-//            bmp.height, Bitmap.Config.ARGB_8888
-//        )
-//        val canvas = Canvas(transBmp)
-//        val paint = Paint()
-//        paint.alpha = alpha
-//        canvas.drawBitmap(bmp, 0f, 0f, paint)
-//        return transBmp
-//    }
-
     private fun drawMap(canvas: Canvas?) {
-        val destRect = Rect()
         val srcRect = Rect()
 
-        with(destRect) {
-            left = 0
-            right = width
-            top = 0
-            bottom = height
-        }
         with(srcRect) {
             left = (math.totalX).toInt()
             right = (math.totalX + width).toInt()
             top = (math.totalY).toInt()
             bottom = (math.totalY + height).toInt()
-
         }
-        canvas!!.drawBitmap(bitmap!!, srcRect, destRect, bitmapPaint)
+
+        val intersectionRect = Rect()
+        val relativeRect = Rect()
+
+        for (list in bitmaps) {
+            for (tile in list) {
+
+                if (intersectionRect.setIntersect(tile.rect, srcRect)) {
+                    with(relativeRect) {
+                        left = (intersectionRect.left - math.totalX).toInt()
+                        right = (intersectionRect.right - math.totalX).toInt()
+                        top = (intersectionRect.top - math.totalY).toInt()
+                        bottom = (intersectionRect.bottom -  math.totalY).toInt()
+                    }
+                    with(intersectionRect) {
+                        left -= tile.rect.left
+                        right -= tile.rect.left
+                        top -= tile.rect.top
+                        bottom -= tile.rect.top
+                    }
+                    canvas!!.drawBitmap(tile.bitmap, intersectionRect, relativeRect, bitmapPaint)
+                }
+            }
+        }
     }
+
+    private fun printRect(rect: Rect): String{
+        return "left = ${rect.left}, right = ${rect.right}, top = ${rect.top}, bottom = ${rect.bottom}"
+    }
+
 
     private fun drawCities(canvas: Canvas?) {
         val bounds = Rect()
@@ -213,37 +197,19 @@ class MapView @JvmOverloads constructor(
         }
 
         for (city in math.cities) {
-//            if (srcRect.contains(city.x.toInt(), city.y.toInt())) {
-                canvas!!.drawCircle(
-                    (city.x - srcRect.left).toFloat(),
-                    (city.y - srcRect.top).toFloat(), pointRadius, pointPaint
-                )
+            canvas!!.drawCircle(
+                (city.x - srcRect.left).toFloat(),
+                (city.y - srcRect.top).toFloat(), pointRadius, pointPaint
+            )
 
-                numberPaint.getTextBounds(city.name, 0, city.name.length, bounds)
-                canvas.drawText(
-                    city.name, ((city.x - srcRect.left - bounds.width() / 2).toFloat()),
-                    ((city.y - srcRect.top - bounds.height() / 2 - 5).toFloat()), numberPaint
-                )
+            numberPaint.getTextBounds(city.name, 0, city.name.length, bounds)
+            canvas.drawText(
+                city.name, ((city.x - srcRect.left - bounds.width() / 2).toFloat()),
+                ((city.y - srcRect.top - bounds.height() / 2 - 5).toFloat()), numberPaint
+            )
 //            }
         }
     }
-
-//    private fun drawOctopus(canvas: Canvas?, octopus: Octopus?) {
-//        val destRect = Rect()
-//
-//        if (octopus == null) {
-//            return
-//        }
-//
-//        with(destRect) {
-//            left = octopus.x.toInt() - math.totalX.toInt()
-//            right = (octopus.x.toInt() + octopusSize - math.totalX.toInt()).toInt()
-//            top = octopus.y.toInt() - math.totalY.toInt()
-//            bottom = (octopus.y.toInt() + octopusSize - math.totalY.toInt()).toInt()
-//        }
-//
-//        canvas!!.drawBitmap(octopus.bitmap!!, null, destRect, bitmapPaint)
-//    }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
         super.onSizeChanged(width, height, oldWidth, oldHeight)
@@ -257,18 +223,53 @@ class MapView @JvmOverloads constructor(
     }
 
     private fun initBitmap() {
-        val drawable = ContextCompat.getDrawable(context, R.drawable.map)
-        bitmap = Bitmap.createScaledBitmap((drawable as BitmapDrawable).bitmap,
-            math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), false)
+//        val drawable = ContextCompat.getDrawable(context, R.drawable.map4)
+//        bitmap = Bitmap.createScaledBitmap(
+//            (drawable as BitmapDrawable).bitmap,
+//            math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), false
+//        )
 
-        bitmapToSend = Bitmap.createBitmap(math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), Bitmap.Config.ARGB_8888)
+        generate()
 
-        val canvas = Canvas(bitmapToSend!!)
-        val paint = Paint()
-        paint.alpha = 255
-        canvas.drawRect(Rect(0, 0, math.bitmapWidth.toInt(), math.bitmapHeight.toInt()), paint)
-//        math.octopus1!!.bitmap = getBitmap(R.drawable.octopus_1, octopusSize.toInt(), octopusSize.toInt())
-//        math.octopus2!!.bitmap = getBitmap(R.drawable.octopus_2, octopusSize.toInt(), octopusSize.toInt())
+//        bitmapToSend = Bitmap.createBitmap(math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), Bitmap.Config.ARGB_8888)
+//
+//        val canvas = Canvas(bitmapToSend!!)
+//        val paint = Paint()
+//        paint.alpha = 255
+//        canvas.drawRect(Rect(0, 0, math.bitmapWidth.toInt(), math.bitmapHeight.toInt()), paint)
+    }
+
+    private var bitmaps: Array<Array<Tile>> = arrayOf()
+
+    private fun generate() {
+        println("generate")
+        var array: Array<Tile>
+        for (i in 1..MapMath.tilesCount) {
+            array = arrayOf()
+            for (j in 1..MapMath.tilesCount) {
+                array += Tile(
+                    Rect(
+                        MapMath.tileWidth * (i - 1), MapMath.tileHeight * (j - 1),
+                        MapMath.tileWidth * i,
+                        MapMath.tileHeight * j
+                    ),
+                    getBitmapFrom("tiles/row-${j}-col-${i}.png", MapMath.tileWidth, MapMath.tileHeight)
+                )
+            }
+            bitmaps += array
+        }
+
+    }
+
+    private fun getBitmapFrom(assetPath: String, width: Int, height: Int): Bitmap {
+        val drawable = Drawable.createFromStream(
+            context.assets.open(assetPath), null
+        )
+
+        return Bitmap.createScaledBitmap(
+            (drawable as BitmapDrawable).bitmap, width,
+            height, false
+        )
     }
 
     private fun getBitmap(resId: Int, width: Int, height: Int): Bitmap {

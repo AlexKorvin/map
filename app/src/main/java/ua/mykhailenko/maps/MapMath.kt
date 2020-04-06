@@ -1,7 +1,6 @@
 package ua.mykhailenko.maps
 
 import ua.mykhailenko.maps.model.City
-import ua.mykhailenko.maps.model.Octopus
 import kotlin.math.PI
 import kotlin.math.ln
 import kotlin.math.tan
@@ -21,9 +20,6 @@ class MapMath {
     //(longitude, latitude) latitude from - 90 to 90, longitude from -180 to 180;y from -90 to 90; x from -180 t0 180
     //longitude will transform into x coordinate and latitude into y coordinate
     var cities = mutableListOf<City>()
-
-//    var octopus1: Octopus? = null
-//    var octopus2: Octopus? = null
 
     init {
         cities.add(City("Kyiv", 30.542721f, 50.447731f))
@@ -57,11 +53,6 @@ class MapMath {
         cities.add(City("Panama City", -79.516670f, 8.983333f))
         cities.add(City("San Francisco", -122.431297f, 37.773972f))
 
-
-
-
-//        octopus1 = Octopus(45.50884f, -73.58781f)
-//        octopus2 = Octopus(160f, 0f)
     }
 
     fun appendX(distanceX: Float) {
@@ -89,21 +80,23 @@ class MapMath {
         this.screenWidth = screenWidth
         this.screenHeight = screenHeight
 
-        val rate: Float = 1.5f * screenHeight / bitmapOriginalHeight.toFloat()
-        bitmapWidth = bitmapOriginalWidth * rate
-        bitmapHeight = bitmapOriginalHeight * rate
+//        val rate: Float = 1.5f * screenHeight / bitmapOriginalHeight.toFloat()
+//        bitmapWidth = bitmapOriginalWidth * rate
+//        bitmapHeight = bitmapOriginalHeight * rate
+
+        bitmapWidth = 2 * bitmapOriginalWidth.toFloat()
+        bitmapHeight = 2 * bitmapOriginalHeight.toFloat()
         println("bitmapWidth = $bitmapWidth bitmapHeight = $bitmapHeight")
 
         initPoints()
-//        initOctopuses()
     }
 
     private fun validateXCoordinate() {
         if (totalX < 0f) {
             totalX = 0f
         }
-        if (totalX > bitmapWidth - screenWidth) {
-            totalX = bitmapWidth - screenWidth
+        if (totalX > tileWidth * tilesCount - screenWidth) {
+            totalX = tileWidth * tilesCount - screenWidth
         }
     }
 
@@ -111,8 +104,8 @@ class MapMath {
         if (totalY < 0f) {
             totalY = 0f
         }
-        if (totalY > bitmapHeight - screenHeight) {
-            totalY = bitmapHeight - screenHeight
+        if (totalY > tileHeight * tilesCount - screenHeight) {
+            totalY = tileHeight * tilesCount - screenHeight
         }
     }
 
@@ -127,20 +120,6 @@ class MapMath {
             }
         }
     }
-
-//    private fun initOctopuses() {
-//        var pair = getCoordinatesBy(octopus1!!.longitude, octopus1!!.latitude)
-//        with(octopus1!!) {
-//            x = pair.first.toFloat()
-//            y = pair.second.toFloat()
-//        }
-//
-//        pair = getCoordinatesBy(octopus2!!.longitude, octopus2!!.latitude)
-//        with(octopus2!!) {
-//            x = pair.first.toFloat()
-//            y = pair.second.toFloat()
-//        }
-//    }
 
     private fun getCoordinatesBy(longitude: Float, latitude: Float) : Pair<Double, Double> {
         var y: Double
@@ -170,7 +149,11 @@ class MapMath {
 
     companion object {
         //Dimensions that are taken from image property
-        var bitmapOriginalHeight = 1505
-        var bitmapOriginalWidth = 2000
+        var bitmapOriginalHeight = 4056
+        var bitmapOriginalWidth = 5388
+
+        const val tileHeight = (579 * 2.5).toInt()
+        const val tileWidth = (770 * 2.5).toInt()
+        const val tilesCount = 7
     }
 }
