@@ -15,6 +15,7 @@ import android.widget.Scroller
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
+import ua.mykhailenko.maps.model.Location
 import ua.mykhailenko.maps.model.Tile
 
 class MapView @JvmOverloads constructor(
@@ -35,6 +36,8 @@ class MapView @JvmOverloads constructor(
     //object that is used for calculation the x,y coordinates after fling gesture.
     //While fling animation is in process we can ask it for the newest and correct coordinates.
     private var scroller: Scroller = Scroller(this.context)
+
+    private var location: Location? = null
 
     //Objects that are used for drawing on the canvas
     private val pointPaint = Paint()
@@ -180,10 +183,13 @@ class MapView @JvmOverloads constructor(
         }
     }
 
+    fun setLocation(location: Location) {
+        this.location = location
+    }
+
     private fun printRect(rect: Rect): String{
         return "left = ${rect.left}, right = ${rect.right}, top = ${rect.top}, bottom = ${rect.bottom}"
     }
-
 
     private fun drawCities(canvas: Canvas?) {
         val bounds = Rect()
