@@ -1,5 +1,7 @@
 package ua.mykhailenko.maps
 
+import android.animation.Animator
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -7,12 +9,13 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.os.Handler
 import android.util.AttributeSet
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.LinearInterpolator
 import android.widget.Scroller
-import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.ViewCompat
 import ua.mykhailenko.maps.model.Location
@@ -25,13 +28,9 @@ class MapView @JvmOverloads constructor(
     defStyleRes: Int = 0
 ) : View(context, attrs, defStyle, defStyleRes) {
 
-    //bitmap is using to draw map
-    private var bitmap: Bitmap? = null
-//    private var bitmapToSend: Bitmap? = null
-
-    //Octopus image is round, so we need only one size
-    private val octopusSize: Float
     private val pointRadius: Float
+    private val locationMaxRadius: Float
+    private val locationRadius: Float
 
     //object that is used for calculation the x,y coordinates after fling gesture.
     //While fling animation is in process we can ask it for the newest and correct coordinates.
@@ -43,8 +42,15 @@ class MapView @JvmOverloads constructor(
     private val pointPaint = Paint()
     private val bitmapPaint = Paint()
     private var numberPaint = Paint()
+    private var wavePaint = Paint()
+
+    private var bitmaps: Array<Array<Tile>> = arrayOf()
+
+    private var progressWave = 0f
+    private var firstWave = true
 
     private val math = MapMath()
+    private val waveHandler: Handler
 
     private val gestureListener = object : GestureDetector.SimpleOnGestureListener() {
 
@@ -92,16 +98,22 @@ class MapView @JvmOverloads constructor(
         }
 
         with(numberPaint) {
-            color = ResourcesCompat.getColor(resources, R.color.colorAccent, null)
-            strokeWidth = 2f
+            color = ResourcesCompat.getColor(resources, R.color.map_text_color, null)
             textSize = resources.getDimension(R.dimen.city_font_size)
-            letterSpacing = 0.15f
             isAntiAlias = true
-            style = Paint.Style.FILL_AND_STROKE
         }
 
+        with(wavePaint) {
+            color = ResourcesCompat.getColor(resources, R.color.wave_connected, null)
+            isAntiAlias = true
+            style = Paint.Style.FILL
+        }
+
+        waveHandler = Handler()
+
         pointRadius = resources.getDimension(R.dimen.point_radius)
-        octopusSize = resources.getDimension(R.dimen.octopus_size)
+        locationMaxRadius = resources.getDimension(R.dimen.location_anim_max_radius)
+        locationRadius = resources.getDimension(R.dimen.location_radius)
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -136,8 +148,8 @@ class MapView @JvmOverloads constructor(
              * content width is 1000 pixels and the screen width is 200
              * pixels, the maximum scroll offset should be 800 pixels.
              */
-            0, MapMath.tileWidth * (MapMath.tilesCount + 1) - width,
-            0, MapMath.tileHeight * (MapMath.tilesCount + 1) - height
+            0, MapMath.tileWidth * MapMath.tilesCount - width,
+            0, MapMath.tileHeight * MapMath.tilesCount - height
         )
         // Invalidates to trigger computeScroll()
         ViewCompat.postInvalidateOnAnimation(this)
@@ -146,6 +158,8 @@ class MapView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
         drawMap(canvas)
+//        drawCities(canvas)
+        drawLocation(canvas)
     }
 
     private fun drawMap(canvas: Canvas?) {
@@ -169,7 +183,7 @@ class MapView @JvmOverloads constructor(
                         left = (intersectionRect.left - math.totalX).toInt()
                         right = (intersectionRect.right - math.totalX).toInt()
                         top = (intersectionRect.top - math.totalY).toInt()
-                        bottom = (intersectionRect.bottom -  math.totalY).toInt()
+                        bottom = (intersectionRect.bottom - math.totalY).toInt()
                     }
                     with(intersectionRect) {
                         left -= tile.rect.left
@@ -181,14 +195,6 @@ class MapView @JvmOverloads constructor(
                 }
             }
         }
-    }
-
-    fun setLocation(location: Location) {
-        this.location = location
-    }
-
-    private fun printRect(rect: Rect): String{
-        return "left = ${rect.left}, right = ${rect.right}, top = ${rect.top}, bottom = ${rect.bottom}"
     }
 
     private fun drawCities(canvas: Canvas?) {
@@ -204,17 +210,176 @@ class MapView @JvmOverloads constructor(
 
         for (city in math.cities) {
             canvas!!.drawCircle(
-                (city.x - srcRect.left).toFloat(),
-                (city.y - srcRect.top).toFloat(), pointRadius, pointPaint
+                (city.x - srcRect.left),
+                (city.y - srcRect.top), pointRadius, pointPaint
             )
 
             numberPaint.getTextBounds(city.name, 0, city.name.length, bounds)
             canvas.drawText(
-                city.name, ((city.x - srcRect.left - bounds.width() / 2).toFloat()),
-                ((city.y - srcRect.top - bounds.height() / 2 - 5).toFloat()), numberPaint
+                city.name, ((city.x - srcRect.left - bounds.width() / 2)),
+                ((city.y - srcRect.top - bounds.height() / 2 - 5)), numberPaint
             )
 //            }
         }
+    }
+
+    private fun drawLocation(canvas: Canvas?) {
+        if (isMoving) return
+        if (location == null) return
+
+        drawMultiWaves(canvas, progressWave)
+
+        val srcRect = Rect()
+
+        with(srcRect) {
+            left = (math.totalX).toInt()
+            right = (math.totalX + width).toInt()
+            top = (math.totalY).toInt()
+            bottom = (math.totalY + height).toInt()
+        }
+
+        pointPaint.color = if (location!!.isConnected) ResourcesCompat.getColor(
+            resources,
+            R.color.wave_connected,
+            null
+        ) else ResourcesCompat.getColor(resources, R.color.wave_disconnected, null)
+
+        val location = location?.coordinate ?: return
+
+        canvas?.drawCircle(
+            location.first - srcRect.left,
+            location.second - srcRect.top,
+            pointRadius,
+            pointPaint
+        )
+    }
+
+    private fun drawMultiWaves(canvas: Canvas?, progress: Float) {
+        var currentProgress = progress
+
+        for (i in 1..WAVES_COUNT) {
+            drawWave(canvas, currentProgress)
+            if (firstWave && (getNextProgress(currentProgress) > currentProgress)) {
+                break
+            } else {
+                currentProgress = getNextProgress(currentProgress)
+            }
+        }
+    }
+
+    private fun getNextProgress(progress: Float): Float {
+        val waveStep = 1f / WAVES_COUNT
+
+        return if (progress - waveStep > 0) (progress - waveStep) else (progress + (1 - waveStep))
+    }
+
+    private fun drawWave(canvas: Canvas?, progress: Float) {
+        if (location == null) return
+        val srcRect = Rect()
+        wavePaint.color = if (location!!.isConnected) ResourcesCompat.getColor(
+            resources,
+            R.color.wave_connected,
+            null
+        ) else ResourcesCompat.getColor(resources, R.color.wave_disconnected, null)
+
+        with(srcRect) {
+            left = (math.totalX).toInt()
+            right = (math.totalX + width).toInt()
+            top = (math.totalY).toInt()
+            bottom = (math.totalY + height).toInt()
+        }
+        val location = location?.coordinate ?: return
+
+        val radius = (locationMaxRadius - pointRadius) * progress + pointRadius
+        wavePaint.alpha = ((MAX_ALPHA * (1 - progress)).toInt())
+        canvas?.drawCircle(
+            location.first - srcRect.left,
+            location.second - srcRect.top,
+            radius,
+            wavePaint
+        )
+    }
+
+    fun setLocation(location: Location?) {
+        this.location = location
+        location?.let {
+            it.coordinate = math.getCoordinatesBy(it.longitude, it.latitude)
+
+            startMovementAnimation()
+        }
+    }
+
+    var startX: Float = 0f
+    var startY: Float = 0f
+    var progressMove = 0f
+    var isMoving: Boolean = false
+    private fun startMovementAnimation() {
+        val movementAnimator = ValueAnimator.ofFloat(0f, 1f)
+        movementAnimator.duration = MOVEMENT_ANIMATION_DURATION
+        movementAnimator.addListener(object : Animator.AnimatorListener {
+            override fun onAnimationRepeat(animation: Animator?) {
+                firstWave = false
+            }
+
+            override fun onAnimationEnd(animation: Animator?) {
+                println("onAnimationEnd")
+                startWaveAnimation()
+                isMoving = false
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {
+            }
+
+            override fun onAnimationStart(animation: Animator?) {
+                println("onAnimationStart")
+                waveAnimator?.cancel()
+                startX = math.totalX
+                startY = math.totalY
+                isMoving = true
+                firstWave = true
+            }
+
+        })
+        movementAnimator.addUpdateListener { valueAnimator ->
+            progressMove = valueAnimator.animatedValue as Float
+
+            location?.let {
+                math.totalY = startY + (it.coordinate!!.second - height / 2f - startY) * progressMove
+                math.totalX = startX + (it.coordinate!!.first - width / 2f - startX) * progressMove
+                invalidate()
+            }
+        }
+        movementAnimator.start()
+    }
+
+    var waveAnimator: ValueAnimator? = null
+    private fun startWaveAnimation() {
+        waveAnimator = ValueAnimator.ofFloat(0f, 1f)
+        waveAnimator?.duration = ANIMATION_DURATION
+        waveAnimator?.repeatCount = ValueAnimator.INFINITE
+        waveAnimator?.interpolator = LinearInterpolator()
+        waveAnimator?.addListener(object : Animator.AnimatorListener {
+            override fun onAnimationRepeat(animation: Animator?) {
+                firstWave = false
+            }
+
+            override fun onAnimationEnd(animation: Animator?) {
+                println("onAnimationEnd")
+            }
+
+            override fun onAnimationCancel(animation: Animator?) {
+            }
+
+            override fun onAnimationStart(animation: Animator?) {
+                println("onAnimationStart")
+            }
+
+        })
+        waveAnimator?.addUpdateListener { valueAnimator ->
+            progressWave = valueAnimator.animatedValue as Float
+            invalidate()
+        }
+        waveAnimator?.start()
     }
 
     override fun onSizeChanged(width: Int, height: Int, oldWidth: Int, oldHeight: Int) {
@@ -225,30 +390,10 @@ class MapView @JvmOverloads constructor(
         }
 
         math.setScreenSize(width.toFloat(), height.toFloat())
-        initBitmap()
+        initTiles()
     }
 
-    private fun initBitmap() {
-//        val drawable = ContextCompat.getDrawable(context, R.drawable.map4)
-//        bitmap = Bitmap.createScaledBitmap(
-//            (drawable as BitmapDrawable).bitmap,
-//            math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), false
-//        )
-
-        generate()
-
-//        bitmapToSend = Bitmap.createBitmap(math.bitmapWidth.toInt(), math.bitmapHeight.toInt(), Bitmap.Config.ARGB_8888)
-//
-//        val canvas = Canvas(bitmapToSend!!)
-//        val paint = Paint()
-//        paint.alpha = 255
-//        canvas.drawRect(Rect(0, 0, math.bitmapWidth.toInt(), math.bitmapHeight.toInt()), paint)
-    }
-
-    private var bitmaps: Array<Array<Tile>> = arrayOf()
-
-    private fun generate() {
-        println("generate")
+    private fun initTiles() {
         var array: Array<Tile>
         for (i in 1..MapMath.tilesCount) {
             array = arrayOf()
@@ -259,32 +404,30 @@ class MapView @JvmOverloads constructor(
                         MapMath.tileWidth * i,
                         MapMath.tileHeight * j
                     ),
-                    getBitmapFrom("tiles/row-${j}-col-${i}.png", MapMath.tileWidth, MapMath.tileHeight)
+                    getBitmapFrom("tiles/row-${j}-col-${i}.png")
                 )
             }
             bitmaps += array
         }
-
     }
 
-    private fun getBitmapFrom(assetPath: String, width: Int, height: Int): Bitmap {
+    private fun getBitmapFrom(assetPath: String): Bitmap {
         val drawable = Drawable.createFromStream(
             context.assets.open(assetPath), null
         )
 
         return Bitmap.createScaledBitmap(
-            (drawable as BitmapDrawable).bitmap, width,
-            height, false
+            (drawable as BitmapDrawable).bitmap, MapMath.tileWidth,
+            MapMath.tileHeight, false
         )
     }
 
-    private fun getBitmap(resId: Int, width: Int, height: Int): Bitmap {
-        val vectorDrawable = (ContextCompat.getDrawable(context, resId))
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+    companion object {
+        const val ANIMATION_DURATION = 5000L
+        const val MOVEMENT_ANIMATION_DURATION = 1000L
 
-        vectorDrawable!!.setBounds(0, 0, canvas.width, canvas.height)
-        vectorDrawable.draw(canvas)
-        return bitmap
+        const val MAX_ALPHA = 255
+
+        const val WAVES_COUNT = 3
     }
 }

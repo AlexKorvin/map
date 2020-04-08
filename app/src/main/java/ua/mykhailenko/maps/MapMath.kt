@@ -84,8 +84,8 @@ class MapMath {
 //        bitmapWidth = bitmapOriginalWidth * rate
 //        bitmapHeight = bitmapOriginalHeight * rate
 
-        bitmapWidth = 2 * bitmapOriginalWidth.toFloat()
-        bitmapHeight = 2 * bitmapOriginalHeight.toFloat()
+        bitmapWidth = (tileWidth * tilesCount).toFloat()
+        bitmapHeight = (tileHeight * tilesCount).toFloat()
         println("bitmapWidth = $bitmapWidth bitmapHeight = $bitmapHeight")
 
         initPoints()
@@ -110,7 +110,7 @@ class MapMath {
     }
 
     private fun initPoints() {
-        var pair: Pair<Double, Double>
+        var pair: Pair<Float, Float>
 
         for (city in cities) {
             pair = getCoordinatesBy(city.longitude, city.latitude)
@@ -121,22 +121,20 @@ class MapMath {
         }
     }
 
-    private fun getCoordinatesBy(longitude: Float, latitude: Float) : Pair<Double, Double> {
-        var y: Double
+    fun getCoordinatesBy(longitude: Float, latitude: Float) : Pair<Float, Float> {
+        var y: Float
 
-        val blackMagicCoef: Double
+        val blackMagicCoef: Float
 
         //Using this coefficients to compensate for the curvature of the map
         val xMapCoefficient = 0.026f
         val yMapCoefficient = 0.965f
-//        val xMapCoefficient = 0f
-//        val yMapCoefficient = 1f
 
         //Logic to convert longitude, latitude into x, y. It's enough when we will have a accurate map
-        var x: Double = (longitude + 180.0) * (bitmapWidth / 360.0)
-        val latRadius: Double = latitude * Math.PI / 180f
-        blackMagicCoef = ln(tan((Math.PI / 4) + (latRadius / 2)))
-        y = (bitmapHeight / 2) - (bitmapWidth * blackMagicCoef / (2 * PI))
+        var x: Float = ((longitude + 180.0) * (bitmapWidth / 360.0)).toFloat()
+        val latRadius: Float = (latitude * Math.PI / 180f).toFloat()
+        blackMagicCoef = ln(tan((Math.PI / 4) + (latRadius / 2))).toFloat()
+        y = ((bitmapHeight / 2) - (bitmapWidth * blackMagicCoef / (2 * PI))).toFloat()
 
         //Trying to compensate for the curvature of the map
         x -= bitmapWidth * xMapCoefficient
@@ -148,12 +146,8 @@ class MapMath {
     }
 
     companion object {
-        //Dimensions that are taken from image property
-        var bitmapOriginalHeight = 4056
-        var bitmapOriginalWidth = 5388
-
-        const val tileHeight = (579 * 2.5).toInt()
-        const val tileWidth = (770 * 2.5).toInt()
-        const val tilesCount = 7
+        const val tileHeight = 615
+        const val tileWidth = 818
+        const val tilesCount = 14
     }
 }

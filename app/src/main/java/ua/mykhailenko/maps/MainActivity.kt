@@ -17,6 +17,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         binding = DataBindingUtil.setContentView(this, R.layout.activity_fullscreen)
-//        setContentView(R.layout.activity_fullscreen)
+        val viewModel = MapViewModel()
+        binding.viewmodel = viewModel
     }
 }

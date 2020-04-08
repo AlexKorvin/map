@@ -2,5 +2,8 @@
 <resources>
     <dimen name="octopus_size">30dp</dimen>
     <dimen name="city_font_size">10dp</dimen>
-    <dimen name="point_radius">2dp</dimen>
+    <dimen name="point_radius">9dp</dimen>
+
+    <dimen name="location_anim_max_radius">90dp</dimen>
+    <dimen name="location_radius">10dp</dimen>
 </resources>
